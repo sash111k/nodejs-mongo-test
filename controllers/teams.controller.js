@@ -3,7 +3,17 @@ const Team = require('../models/team.model')
 class TeamsController {
     async getTeams(req, res) {
         try {
-            const teams = await Team.find();
+            const teams = await Team.aggregate(
+                [
+                    {
+                        $project : {
+                            _id: 0,
+                            id: '$_id',
+                            name: '$team_name',
+                        }
+                    }
+                ]
+            );
             res.json(teams);
         }
         catch (e) {

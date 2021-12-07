@@ -21,11 +21,12 @@ app.use('/api', matchesRouter);
 
 async function startApp() {
     try {
-        app.listen(PORT,()=>{
-            console.log(`server listening on PORT ${PORT}`)
-        })
+
         await mongoose.connect(DB_URL ,()=>{
-            console.log('Database connected')
+            console.log('Database connected');
+            app.listen(PORT,()=>{
+                console.log(`server listening on PORT ${PORT}`)
+            })
         })
 
     }

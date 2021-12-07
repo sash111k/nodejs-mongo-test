@@ -3,7 +3,17 @@ const Tournament = require('../models/tournament.model')
 class TournamentController {
     async getTournaments(req, res) {
         try {
-            const teams = await Tournament.find();
+            const teams = await Tournament.aggregate(
+                [
+                    {
+                        $project : {
+                            _id: 0,
+                            id: '$_id',
+                            name: '$tournament_name',
+                        }
+                    }
+                ]
+            );
             res.json(teams);
         }
         catch (e) {

@@ -11,7 +11,16 @@ class SeasonsController {
 
     async getSeasons(req,res){
         try {
-            const teams = await Season.find();
+            // const teams = await Season.find();
+            const teams = await Season.aggregate([
+                {
+                    $project : {
+                        _id: 0,
+                        id: '$_id',
+                        name: '$season',
+                    }
+                }
+            ])
             res.json(teams);
         }
         catch (e) {

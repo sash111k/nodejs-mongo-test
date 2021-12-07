@@ -4,16 +4,18 @@ const Team = require('../models/team.model')
 const Season = require('../models/season.model')
 const mongoose = require('mongoose')
 const {Aggregate} = require("mongoose");
-class MatchesController{
-    async createMatch(req,res){
-        const {first_team_name, second_team_name,
-            first_team_score, second_team_score, tournament, season, full_tournament_name} = req.body;
+
+class MatchesController {
+    async createMatch(req, res) {
+        const {
+            first_team_name, second_team_name,
+            first_team_score, second_team_score, tournament, season, full_tournament_name
+        } = req.body;
         const firstTeam = await Team.findOne({team_name: first_team_name});
         const secondTeam = await Team.findOne({team_name: second_team_name});
         const realSeason = await Season.findOne({season: season});
-        const realTournament = await Season.findOne({tournament: tournament});
-
-        console.log(firstTeam._id)
+        const realTournament = await Tournament.findOne({tournament_name: tournament});
+        //console.log(tournament,realTournament)
         const newMatch = await Match.create({
             first_team_id: firstTeam._id,
             second_team_id: secondTeam._id,
@@ -24,46 +26,138 @@ class MatchesController{
             full_tournament_name: full_tournament_name
         })
 
-        res.json({status: "Created",
-                    match: newMatch})
+        res.json({
+            status: "Created",
+            match: newMatch
+        })
     }
 
-    async getMatches(req,res){
-        const allMatches = await Match.find();
-        // let resultMatches = allMatches.map(async (match)=>{
-        //     const first_team = await Team.findById(match.first_team_id);
-        //     const first_team_name = first_team.team_name;
-        //     // return {
-        //     //     _id : match._id,
-        //     //     first_team_name : await Team.findById(match.first_team_id).team_name,
-        //     //     second_team_name : await Team.findById(match.second_team_id).team_name,
-        //     //     first_team_score : match.first_team_score,
-        //     //     second_team_score: match.second_team_score,
-        //     //     tournament_name: await Tournament.findById(match.tournament_id).tournament_name,
-        //     //     season : await Season.findById(match.season_id).season,
-        //     //     full_tournament_name : match.full_tournament_name
-        //     // }
-        // })
-        console.log(Team.collection.name)
-       const resultMatches = await Match.aggregate([
-           {
-               "$project": {
-                   "_id": {
-                       "$toString": '$_id'
-                   }
-               }
-           },
-           {
-                "$lookup" : {
-                    "from": Team.collection.name,
-                    "localField": '_id',
-                    "foreignField": 'first_team_id',
-                    "as": 'first_team_name'
+
+    async getMatches(req, res) {
+        let {team,tournament,season} = req.query;
+        console.log(team,tournament,season)
+
+
+        let realPipeline = [
+            {
+                $match: {
+                    // $or: [
+                    //     { first_team_id: mongoose.Types.ObjectId(team)},
+                    //     { second_team_id: mongoose.Types.ObjectId(team)}
+                    // ],
+                    // tournament_id: mongoose.Types.ObjectId(tournament),
+                    // season_id: mongoose.Types.ObjectId(season)
+                }
+            },
+            {
+                $lookup: {
+                    from: 'teams',
+                    'let': {first_team_id: '$first_team_id'},
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ['$_id', '$$first_team_id']
+                                }
+                            }
+                        }
+                    ],
+                    as: 'ftn'
+                }
+            },
+            {
+                $unwind: "$ftn"
+            },
+            {
+                $lookup: {
+                    from: 'teams',
+                    'let': {second_team_id: '$second_team_id'},
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ['$_id', '$$second_team_id']
+                                }
+                            }
+                        }
+                    ],
+                    as: 'stn'
+                }
+            },
+            {
+                $unwind: "$stn"
+            },
+            {
+                $lookup: {
+                    from: 'seasons',
+                    'let': {season_id: '$season_id'},
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ['$_id', '$$season_id']
+                                }
+                            }
+                        }
+                    ],
+                    as: 'season'
+                }
+            },
+            {
+                $unwind: "$season"
+            },
+            {
+                $lookup: {
+                    from: 'tournaments',
+                    'let': {tournament_id: '$tournament_id'},
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $eq: ['$_id', '$$tournament_id']
+                                }
+                            }
+                        }
+                    ],
+                    as: 'tournament'
+                }
+            },
+            {
+                $unwind: "$tournament"
+            },
+            {
+                $project: {
+                    id: '$_id',
+                    first_team: '$ftn.team_name',
+                    second_team: '$stn.team_name',
+                    first_team_score: '$first_team_score',
+                    second_team_score: '$second_team_score',
+                    season: '$season.season',
+                    tournament: '$tournament.tournament_name',
+                    full_tournament_name: '$full_tournament_name'
                 }
             }
-        ])
-        console.log(resultMatches)
-        res.json({status : 'OK'})
+        ]
+        if(team && team != 0){
+            console.log('t11')
+            realPipeline[0].$match.$or = [
+                { first_team_id: mongoose.Types.ObjectId(team)},
+                { second_team_id: mongoose.Types.ObjectId(team)}
+            ]
+        }
+        if(tournament && tournament != 0){
+            console.log('t12')
+            realPipeline[0].$match.tournament_id = mongoose.Types.ObjectId(tournament)
+        }
+        if(season && season != 0){
+            console.log('t13')
+            realPipeline[0].$match.season_id = mongoose.Types.ObjectId(season)
+        }
+
+        const resultMatches = await Match.aggregate(realPipeline)
+
+
+        res.json(resultMatches)
     }
 }
 
